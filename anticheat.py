@@ -838,8 +838,8 @@ class AntiCheatSystem:
         markup = types.InlineKeyboardMarkup()
         markup.add(
             types.InlineKeyboardButton(
-                "🌐 Open Verification Page",
-                url=verify_url
+                "🔐 Verify Inside Telegram",
+                web_app=WebAppInfo(url=verify_url)
             )
         )
         markup.add(
@@ -860,10 +860,10 @@ class AntiCheatSystem:
             f"{self.pe('arrow')} device/session fingerprint checks\n"
             f"{self.pe('arrow')} multi-account risk scoring\n\n"
             f"{self.pe('zap')} <b>Steps:</b>\n"
-            f"{self.pe('play')} Tap the verification page button\n"
-            f"{self.pe('play')} Complete the quick check\n"
-            f"{self.pe('play')} Return and tap <b>I Verified</b>\n\n"
-            f"{self.pe('link')} <b>Direct Link:</b>\n<code>{verify_url}</code>\n\n"
+            f"{self.pe('play')} Tap <b>Verify Inside Telegram</b>\n"
+            f"{self.pe('play')} Complete the quick check inside Telegram\n"
+            f"{self.pe('play')} If the page closes automatically, you are done\n"
+            f"{self.pe('play')} Or tap <b>I Verified</b> if needed\n\n"
             f"{self.pe('money')} <b>Reward Status:</b> Locked 🔒\n"
             f"{self.pe('arrow')} You can still continue using the bot anytime.\n"
             f"━━━━━━━━━━━━━━━━━━━━━━",

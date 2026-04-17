@@ -965,7 +965,7 @@
 
         <div class="btn-stack">
             <button class="btn btn-success-cta" id="btnContinue" onclick="handleContinue(this)">
-                <span class="btn-text">Continue to App</span>
+                <span class="btn-text">✅ Verified</span>
                 <div class="btn-spinner" aria-hidden="true"></div>
             </button>
         </div>
@@ -1035,7 +1035,7 @@
 
         <div class="btn-stack">
             <button class="btn btn-danger" id="btnRetry" onclick="handleRetry(this)">
-                <span class="btn-text">Retry Verification</span>
+                <span class="btn-text">Use /start Command</span>
                 <div class="btn-spinner" aria-hidden="true"></div>
             </button>
             <button class="btn btn-ghost" onclick="handleClose()">
@@ -1354,7 +1354,7 @@ function handleVerify(btn) {
 function handleContinue(btn) {
     if (!btn || btn.classList.contains('loading')) return;
     btn.classList.add('loading');
-    toast('Launching app…', 'success');
+    toast('Opening Telegram…', 'success');
     fireConfetti();
 
     var redirectUrl = '{{ redirect_url if redirect_url else "" }}';
@@ -1365,12 +1365,10 @@ function handleContinue(btn) {
 function handleRetry(btn) {
     if (!btn || btn.classList.contains('loading')) return;
     btn.classList.add('loading');
-    toast('Retrying…', 'info');
+    toast('Open the bot and send /start.', 'info');
 
-    setTimeout(function() {
-        btn.classList.remove('loading');
-        window.location.reload();
-    }, 2000);
+    var redirectUrl = '{{ redirect_url if redirect_url else "" }}';
+    doRedirect(redirectUrl, 900);
 }
 
 // Close/Cancel
@@ -1401,7 +1399,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }, 600);
 
         } else if (state === 'error') {
-            toast('Verification could not be completed.', 'error');
+            toast('Verification could not be completed. Use /start in the bot.', 'error');
 
         } else {
             toast('Secure session started.', 'info');

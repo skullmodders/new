@@ -965,6 +965,9 @@ def clear_state(user_id):
 # ======================== KEYBOARDS ========================
 def get_main_keyboard(user_id=None):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    user = get_user(user_id) if user_id else None
+    if user and int(user["ip_verified"] or 0) == 1:
+        markup.add(types.KeyboardButton("✅ Verified"))
     markup.add(
         types.KeyboardButton("💰 Balance"),
         types.KeyboardButton("👥 Refer"),

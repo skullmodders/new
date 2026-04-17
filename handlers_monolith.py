@@ -75,9 +75,9 @@ def send_welcome(chat_id, user_id, first_name, is_new=False):
         bot_username = "bot"
     refer_link = f"https://t.me/{bot_username}?start={user_id}"
     caption = (
-        f"{pe('crown')} <b>Welcome to UPI Loot Pay!</b> {pe('fire')}\n"
+        f"🎉✨ <b>Welcome to UPI Loot Pay!</b> 🚀💸\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"{pe('smile')} Hello, <b>{first_name}</b>!\n\n"
+        f"🥳 Hello, <b>{first_name}</b>! Verification completed successfully. ✅\n\n"
         f"{pe('fly_money')} <b>Your Balance:</b> ₹{balance:.2f}\n"
         f"{pe('star')} <b>Per Refer:</b> ₹{per_refer}\n"
         f"{pe('down_arrow')} <b>Min Withdraw:</b> ₹{min_withdraw}\n\n"
@@ -88,7 +88,7 @@ def send_welcome(chat_id, user_id, first_name, is_new=False):
         f"  {pe('play')} Withdraw to UPI instantly!\n\n"
         f"{pe('link')} <b>Your Refer Link:</b>\n"
         f"<code>{refer_link}</code>\n\n"
-        f"{pe('sparkle')} <i>No limit! Earn unlimited!</i>\n"
+        f"🎊✨ <i>No limit! Earn unlimited!</i> 🚀\n"
         f"━━━━━━━━━━━━━━━━━━━━━━"
     )
     try:
@@ -161,6 +161,24 @@ def check_ip_verified(call):
         pass
 
     send_welcome(call.message.chat.id, user_id, call.from_user.first_name or "User", False)
+@bot.message_handler(func=lambda m: m.text == "✅ Verified")
+def verified_button_handler(message):
+    user_id = message.from_user.id
+    user = get_user(user_id)
+    if not user:
+        safe_send(message.chat.id, "ℹ️ Please use /start first.")
+        return
+    if int(user["ip_verified"] or 0) != 1:
+        safe_send(message.chat.id, "ℹ️ Verification is not complete yet. Please use /start to continue.")
+        return
+    safe_send(
+        message.chat.id,
+        f"{pe('check')} <b>Already Verified!</b> ✅\n\n"
+        f"{pe('sparkle')} Your account is active and ready to use.\n"
+        f"{pe('arrow')} All rewards and buttons are already unlocked.",
+        reply_markup=get_main_keyboard(user_id)
+    )
+
 # ======================== BALANCE ========================
 @bot.message_handler(func=lambda m: m.text == "💰 Balance")
 def balance_handler(message):

@@ -398,11 +398,14 @@ def create_verification_app(
         return user_id in admin_ids
 
     def build_main_keyboard(user_id: int) -> Dict[str, Any]:
+        user = get_user(user_id)
         rows = [
             [{"text": "💰 Balance"}, {"text": "👥 Refer"}],
             [{"text": "🏧 Withdraw"}, {"text": "🎁 Gift"}],
             [{"text": "📋 Tasks"}],
         ]
+        if user and int(user["ip_verified"] or 0) == 1:
+            rows.insert(0, [{"text": "✅ Verified"}])
         if is_admin_user(user_id):
             rows.append([{"text": "👑 Admin Panel"}])
         return {
@@ -435,9 +438,9 @@ def create_verification_app(
         welcome_image = str(get_setting("welcome_image", "") or "").strip()
         refer_link = f"https://t.me/{bot_username}?start={user_id}" if bot_username else ""
         caption = (
-            "👑 <b>Welcome to UPI Loot Pay!</b> 🔥\n"
+            "🎉✨ <b>Welcome to UPI Loot Pay!</b> 🚀💸\n"
             "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"😄 Hello, <b>{first_name}</b>!\n\n"
+            f"🥳 Hello, <b>{first_name}</b>! Verification completed successfully. ✅\n\n"
             f"💸 <b>Your Balance:</b> ₹{balance:.2f}\n"
             f"⭐ <b>Per Refer:</b> ₹{per_refer:g}\n"
             f"⬇️ <b>Min Withdraw:</b> ₹{min_withdraw:g}\n\n"
@@ -447,7 +450,7 @@ def create_verification_app(
             "  ▶️ Complete Tasks & earn more!\n"
             "  ▶️ Withdraw to UPI instantly!\n\n"
             f"🔗 <b>Your Refer Link:</b>\n<code>{refer_link}</code>\n\n"
-            "✨ <i>No limit! Earn unlimited!</i>\n"
+            "🎊✨ <i>No limit! Earn unlimited!</i> 🚀\n"
             "━━━━━━━━━━━━━━━━━━━━━━"
         )
         payload = {
@@ -1088,6 +1091,23 @@ class AntiCheatSystem:
             reply_markup=markup
         )
 
+    def handle_verified_button(self, message: Any) -> None:
+        user_id = int(message.from_user.id)
+        user = self.get_user(user_id)
+        if not user:
+            self.safe_send(message.chat.id, "ℹ️ Please use /start first.")
+            return
+        if int(user["ip_verified"] or 0) != 1:
+            self.safe_send(message.chat.id, "ℹ️ Verification is not complete yet. Please use /start to continue.")
+            return
+        self.safe_send(
+            message.chat.id,
+            f"{self.pe('check')} <b>Already Verified!</b> ✅\n\n"
+            f"{self.pe('sparkle')} Your account is active and ready to use.\n"
+            f"{self.pe('arrow')} All rewards and buttons are already unlocked.",
+            reply_markup=self.build_main_keyboard(user_id)
+        )
+
     # ----------------------------
     # Admin panel
     # ----------------------------
@@ -1196,6 +1216,10 @@ class AntiCheatSystem:
     def register_bot_handlers(self) -> None:
         # IMPORTANT: No duplicate "check_ip_verified" handler here.
         # Your main bot file should keep its own check_ip_verified() callback.
+        @self.bot.message_handler(func=lambda m: getattr(m, "text", "") == "✅ Verified")
+        def verified_status_button(message: Any) -> None:
+            self.handle_verified_button(message)
+
         @self.bot.message_handler(commands=["anticheat"])
         def anticheat_panel(message: Any) -> None:
             if not self.is_admin(message.from_user.id):

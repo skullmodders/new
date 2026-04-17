@@ -677,15 +677,6 @@ def parse_dt(value):
             return None
 
 
-def safe_row_value(row, key, default=None):
-    if row is None:
-        return default
-    try:
-        return row[key]
-    except Exception:
-        return default
-
-
 def is_ip_verification_required():
     return bool(get_setting("ip_verification_enabled"))
 
@@ -758,13 +749,12 @@ def evaluate_inactivity_penalty(user_id):
     if not user:
         return False, 0.0
     floor = float(get_setting("inactivity_min_balance_floor") or 1)
-    balance = float(safe_row_value(user, "balance", 0) or 0)
+    balance = float(user["balance"] or 0)
     if balance <= floor:
         return False, 0.0
     days_limit = int(get_setting("inactivity_period_days") or 1)
     deduction_pct = float(get_setting("inactivity_deduction_percent") or 0)
-    last_active_raw = (safe_row_value(user, "last_active_at", "") or safe_row_value(user, "joined_at", "") or "").strip()
-    last_active = parse_dt(last_active_raw)
+    last_active = parse_dt(user["last_active_at"] or user["joined_at"])
     if not last_active or (datetime.now() - last_active).days < days_limit:
         return False, 0.0
     deduction = round(balance * deduction_pct / 100.0, 2)

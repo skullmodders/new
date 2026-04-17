@@ -361,7 +361,6 @@ def health():
 
 
 @app.route("/ip-verify")
-@app.route("/verify")
 def ip_verify():
     uid = request.args.get("uid", "").strip()
 
@@ -377,7 +376,7 @@ def ip_verify():
             verified_at="—",
             device_type="—",
             bot_username=BOT_USERNAME,
-        )
+        ), 400
 
     user_id = int(uid)
     ip = get_real_ip()
@@ -397,8 +396,7 @@ def ip_verify():
             verified_at="—",
             device_type=detect_device(user_agent),
             bot_username=BOT_USERNAME,
-            redirect_url=f"https://t.me/{BOT_USERNAME}" if BOT_USERNAME else "",
-        )
+        ), 400
 
     return render_template(
         "verify.html",
@@ -411,7 +409,6 @@ def ip_verify():
         verified_at=data["verified_at"],
         device_type=data["device_type"],
         bot_username=data["bot_username"],
-        redirect_url=f"https://t.me/{data['bot_username']}" if data.get("bot_username") else "",
     )
 
 

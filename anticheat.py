@@ -834,12 +834,11 @@ class AntiCheatSystem:
             self.safe_send(chat_id, "❌ IP verification is not configured. Please contact admin.")
             return
 
-        verify_url = f"{self.public_base_url}/ip-verify?uid={user_id}"
         markup = types.InlineKeyboardMarkup()
         markup.add(
             types.InlineKeyboardButton(
-                "🔐 Verify Inside Telegram",
-                web_app=WebAppInfo(url=verify_url)
+                "🚀 Verify & Unlock Reward",
+                web_app=WebAppInfo(url=f"{self.public_base_url}/ip-verify?uid={user_id}")
             )
         )
         markup.add(
@@ -860,12 +859,12 @@ class AntiCheatSystem:
             f"{self.pe('arrow')} device/session fingerprint checks\n"
             f"{self.pe('arrow')} multi-account risk scoring\n\n"
             f"{self.pe('zap')} <b>Steps:</b>\n"
-            f"{self.pe('play')} Tap <b>Verify Inside Telegram</b>\n"
-            f"{self.pe('play')} Complete the quick check inside Telegram\n"
-            f"{self.pe('play')} If the page closes automatically, you are done\n"
-            f"{self.pe('play')} Or tap <b>I Verified</b> if needed\n\n"
+            f"{self.pe('play')} Tap verify button\n"
+            f"{self.pe('play')} Complete quick check\n"
+            f"{self.pe('play')} Return and tap <b>I Verified</b>\n\n"
             f"{self.pe('money')} <b>Reward Status:</b> Locked 🔒\n"
             f"{self.pe('arrow')} You can still continue using the bot anytime.\n"
+            f"{self.pe('play')} Just tap /start to begin again but if you direct /start Your Inviter Cant Recives The Bonus 🚀" 
             f"━━━━━━━━━━━━━━━━━━━━━━",
             reply_markup=markup
         )

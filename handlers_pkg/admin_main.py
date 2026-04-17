@@ -1126,7 +1126,7 @@ def show_advanced_settings(chat_id):
     )
     markup.add(
         types.InlineKeyboardButton("📉 Inactivity", callback_data="adv_inactivity"),
-        types.InlineKeyboardButton("📊 Reports", callback_data="adv_reports"),
+        types.InlineKeyboardButton("🎮 Game Controls", callback_data="adv_games"),
     )
     markup.add(
         types.InlineKeyboardButton("👤 User Controls", callback_data="adv_users"),
@@ -1215,24 +1215,12 @@ def adv_inactivity(call):
     safe_send(call.message.chat.id, f"{pe('chart_down')} <b>Inactivity Deduction</b>\n\nEnabled: <b>{'ON' if bool(get_setting('inactivity_deduction_enabled')) else 'OFF'}</b>\nDeduction: <b>{get_setting('inactivity_deduction_percent')}%</b>\nPeriod: <b>{get_setting('inactivity_period_days')} day(s)</b>\nFloor: <b>₹{get_setting('inactivity_min_balance_floor')}</b>\nDefinition: <b>{get_setting('inactivity_definition')}</b>", reply_markup=markup)
 
 
-@bot.callback_query_handler(func=lambda call: call.data == "adv_reports")
-def adv_reports(call):
+@bot.callback_query_handler(func=lambda call: call.data == "adv_games")
+def adv_games(call):
     if not is_admin(call.from_user.id):
         return
     safe_answer(call)
-    total_users = get_user_count()
-    total_refs = get_total_referrals()
-    total_withdrawn = get_total_withdrawn()
-    pending = get_total_pending()
-    safe_send(
-        call.message.chat.id,
-        f"{pe('stats')} <b>System Reports</b>\n\n"
-        f"{pe('people')} Total users: <b>{total_users}</b>\n"
-        f"{pe('chart_up')} Total referrals: <b>{total_refs}</b>\n"
-        f"{pe('wallet')} Total withdrawn: <b>₹{total_withdrawn:.2f}</b>\n"
-        f"{pe('pending2')} Pending withdrawals: <b>{pending}</b>\n\n"
-        f"{pe('info')} Use main admin panel sections like All Users, Withdrawals, referral leaderboard, redeem code manager, and logs for full management."
-    )
+    safe_send(call.message.chat.id, f"{pe('game')} <b>Game / Feature Controls</b>\n\nTasks: <b>{'ON' if bool(get_setting('tasks_enabled')) else 'OFF'}</b>\nGift: <b>{'ON' if bool(get_setting('gift_enabled')) else 'OFF'}</b>\nWithdraw: <b>{'ON' if bool(get_setting('withdraw_enabled')) else 'OFF'}</b>\nDaily bonus cooldown: <b>{get_setting('game_daily_bonus_cooldown_hours')}h</b>")
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "adv_users")

@@ -6,6 +6,7 @@ import json
 import os
 import re
 import sqlite3
+import requests
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -244,9 +245,11 @@ HTML_ERROR = """
 def create_verification_app(
     DB_PATH: Optional[str] = None,
     BOT_USERNAME: Optional[str] = None,
+    BOT_TOKEN: Optional[str] = None,
 ) -> Flask:
     db_path = DB_PATH or os.environ.get("DB_PATH", "/data/bot_database.db")
     bot_username = BOT_USERNAME or os.environ.get("BOT_USERNAME", "NeturalPredictorbot")
+    bot_token = BOT_TOKEN or os.environ.get("BOT_TOKEN", "")
     app = Flask(__name__)
 
     def get_db() -> sqlite3.Connection:
@@ -339,6 +342,212 @@ def create_verification_app(
         if not row:
             return default_anticheat_settings()
         return safe_json_loads(row["value"], default_anticheat_settings())
+
+    def get_setting(key: str, default: Any = None) -> Any:
+        conn = get_db()
+        cur = conn.cursor()
+        try:
+            cur.execute("SELECT value FROM settings WHERE key=?", (key,))
+            row = cur.fetchone()
+            if not row:
+                return default
+            value = row["value"]
+            if value is None:
+                return default
+            try:
+                return json.loads(value)
+            except Exception:
+                low = str(value).strip().lower()
+                if low in ("true", "false"):
+                    return low == "true"
+                return value
+        except sqlite3.OperationalError:
+            return default
+        finally:
+            conn.close()
+
+    def to_float(value: Any, default: float = 0.0) -> float:
+        try:
+            return float(value)
+        except Exception:
+            return default
+
+    def is_admin_user(user_id: int) -> bool:
+        admin_ids = set()
+        for raw in [
+            os.environ.get("ADMIN_ID", ""),
+            os.environ.get("ADMIN_IDS", ""),
+            get_setting("admin_id", ""),
+            get_setting("admin_ids", []),
+        ]:
+            if isinstance(raw, list):
+                for item in raw:
+                    try:
+                        admin_ids.add(int(item))
+                    except Exception:
+                        pass
+                continue
+            for part in str(raw or "").replace(";", ",").split(","):
+                part = part.strip()
+                if not part:
+                    continue
+                try:
+                    admin_ids.add(int(part))
+                except Exception:
+                    pass
+        return user_id in admin_ids
+
+    def build_main_keyboard(user_id: int) -> Dict[str, Any]:
+        rows = [
+            [{"text": "💰 Balance"}, {"text": "👥 Refer"}],
+            [{"text": "🏧 Withdraw"}, {"text": "🎁 Gift"}],
+            [{"text": "📋 Tasks"}],
+        ]
+        if is_admin_user(user_id):
+            rows.append([{"text": "👑 Admin Panel"}])
+        return {
+            "keyboard": rows,
+            "resize_keyboard": True,
+        }
+
+    def telegram_api(method: str, payload: Dict[str, Any]) -> bool:
+        if not bot_token:
+            return False
+        try:
+            resp = requests.post(
+                f"https://api.telegram.org/bot{bot_token}/{method}",
+                json=payload,
+                timeout=15,
+            )
+            return resp.ok
+        except Exception:
+            return False
+
+    def send_welcome_via_bot(user_id: int) -> bool:
+        user = get_user(user_id)
+        if not user:
+            return False
+
+        first_name = (user["first_name"] or "User").strip() or "User"
+        balance = to_float(user["balance"], 0.0)
+        per_refer = to_float(get_setting("per_refer", 0), 0.0)
+        min_withdraw = to_float(get_setting("min_withdraw", 0), 0.0)
+        welcome_image = str(get_setting("welcome_image", "") or "").strip()
+        refer_link = f"https://t.me/{bot_username}?start={user_id}" if bot_username else ""
+        caption = (
+            "👑 <b>Welcome to UPI Loot Pay!</b> 🔥\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"😄 Hello, <b>{first_name}</b>!\n\n"
+            f"💸 <b>Your Balance:</b> ₹{balance:.2f}\n"
+            f"⭐ <b>Per Refer:</b> ₹{per_refer:g}\n"
+            f"⬇️ <b>Min Withdraw:</b> ₹{min_withdraw:g}\n\n"
+            "⚡ <b>How to Earn?</b>\n"
+            "  ▶️ Share your referral link\n"
+            "  ▶️ Friends complete verification or auto approval → You earn referral rewards\n"
+            "  ▶️ Complete Tasks & earn more!\n"
+            "  ▶️ Withdraw to UPI instantly!\n\n"
+            f"🔗 <b>Your Refer Link:</b>\n<code>{refer_link}</code>\n\n"
+            "✨ <i>No limit! Earn unlimited!</i>\n"
+            "━━━━━━━━━━━━━━━━━━━━━━"
+        )
+        payload = {
+            "chat_id": user_id,
+            "parse_mode": "HTML",
+            "reply_markup": build_main_keyboard(user_id),
+        }
+        if welcome_image:
+            photo_payload = dict(payload)
+            photo_payload.update({"photo": welcome_image, "caption": caption})
+            if telegram_api("sendPhoto", photo_payload):
+                return True
+        msg_payload = dict(payload)
+        msg_payload.update({"text": caption})
+        return telegram_api("sendMessage", msg_payload)
+
+    def get_referral_chain(user_id: int, max_levels: int = 3) -> List[Tuple[int, sqlite3.Row]]:
+        chain: List[Tuple[int, sqlite3.Row]] = []
+        current = get_user(user_id)
+        for level in range(1, max_levels + 1):
+            if not current:
+                break
+            ref_id = int(current["referred_by"] or 0)
+            if not ref_id or ref_id == user_id:
+                break
+            parent = get_user(ref_id)
+            if not parent:
+                break
+            chain.append((level, parent))
+            current = parent
+        return chain
+
+    def get_referral_reward(level: int, base_amount: float = 0.0) -> float:
+        if not bool(get_setting("referral_system_enabled", True)):
+            return 0.0
+        reward_type = str(get_setting(f"referral_level_{level}_type", "fixed") or "fixed").lower()
+        reward_value = to_float(get_setting(f"referral_level_{level}_value", 0), 0.0)
+        if reward_type == "percent":
+            return round(base_amount * reward_value / 100.0, 2)
+        return round(reward_value, 2)
+
+    def process_referral_bonus(user_id: int, allow_flagged: bool = False) -> bool:
+        user = get_user(user_id)
+        if not user:
+            return False
+        if int(user["referral_paid"] or 0) == 1:
+            return False
+        if int(user["ip_verified"] or 0) != 1:
+            return False
+        status = str(user["verification_status"] or "pending").lower()
+        if status == "blocked":
+            return False
+        if not allow_flagged and (status in ("flagged", "review") or int(user["flagged_for_review"] or 0) == 1):
+            return False
+
+        chain = get_referral_chain(user_id, 3)
+        if not chain:
+            conn = get_db()
+            cur = conn.cursor()
+            cur.execute("UPDATE users SET referral_paid=1, referral_hold_until='' WHERE user_id=?", (user_id,))
+            conn.commit()
+            conn.close()
+            return False
+
+        base_amount = get_referral_reward(1, 0.0)
+        conn = get_db()
+        cur = conn.cursor()
+        paid_any = False
+
+        try:
+            for level, parent in chain:
+                reward = get_referral_reward(level, base_amount)
+                if reward <= 0:
+                    continue
+                cur.execute(
+                    "UPDATE users SET balance=balance+?, total_earned=total_earned+?, referral_count=referral_count+? WHERE user_id=?",
+                    (reward, reward, 1 if level == 1 else 0, int(parent["user_id"])),
+                )
+                paid_any = True
+                telegram_api(
+                    "sendMessage",
+                    {
+                        "chat_id": int(parent["user_id"]),
+                        "parse_mode": "HTML",
+                        "text": (
+                            f"🎉 <b>Referral Level {level} Bonus Claimed!</b>\n\n"
+                            f"💰 You earned <b>₹{reward:.2f}</b>\n"
+                            f"👥 User: <code>{user_id}</code> completed verification or auto-approval."
+                        ),
+                    },
+                )
+            cur.execute(
+                "UPDATE users SET referral_paid=1, referral_hold_until='' WHERE user_id=?",
+                (user_id,),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        return paid_any
 
     def get_real_ip() -> str:
         forwarded_for = request.headers.get("X-Forwarded-For", "")
@@ -532,7 +741,7 @@ def create_verification_app(
             log_attempt(user_id, ip_address, fingerprint_hash, user_agent, "failed", verification_note, score)
             return False, f"Verification blocked. Reason: {verification_note}"
 
-        hold_until = (datetime.utcnow() + timedelta(minutes=int(cfg["referral_hold_minutes"]))).strftime("%Y-%m-%d %H:%M:%S")
+        hold_until = ""
         first_verified_ip = user["first_verified_ip"] or ip_address
 
         cur.execute(
@@ -599,6 +808,8 @@ def create_verification_app(
                 bot_username=bot_username,
             ), 400
 
+        process_referral_bonus(user_id)
+        send_welcome_via_bot(user_id)
         return render_template_string(
             HTML_SUCCESS,
             user_id=user_id,

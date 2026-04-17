@@ -6,10 +6,13 @@ import time
 import random
 import string
 import json
+import re
+import html
 from datetime import datetime
 import os
 import csv
 import io
+from urllib.parse import urlparse
 from telebot.types import WebAppInfo
 from anticheat import AntiCheatSystem
 from broadcast import BroadcastSystem
@@ -127,6 +130,25 @@ PE = {
     "import": "5406756500108501710","stats": "5231200819986047254","list": "5334544901428229844",
 }
 
+
+
+def normalize_public_base_url(raw_url):
+    raw_url = (raw_url or "").strip()
+    if not raw_url:
+        for env_key in ("PUBLIC_BASE_URL", "RAILWAY_PUBLIC_DOMAIN", "RAILWAY_STATIC_URL"):
+            candidate = (os.environ.get(env_key, "") or "").strip()
+            if candidate:
+                raw_url = candidate
+                break
+    if not raw_url:
+        return ""
+    if not re.match(r"^https?://", raw_url, re.IGNORECASE):
+        raw_url = f"https://{raw_url.lstrip('/')}"
+    parsed = urlparse(raw_url)
+    if not parsed.netloc:
+        return ""
+    return f"https://{parsed.netloc}{parsed.path}".rstrip("/")
+
 def pe(name):
     eid = PE.get(name, "")
     if eid:
@@ -138,7 +160,7 @@ bot = telebot.TeleBot(BOT_TOKEN, parse_mode=None)
 # ======================== DATABASE ========================
 DB_PATH = os.environ.get("DB_PATH", "/data/bot_database.db")
 DB_LOCK = threading.Lock()
-PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "").rstrip("/")
+PUBLIC_BASE_URL = normalize_public_base_url(os.environ.get("PUBLIC_BASE_URL", ""))
 def get_db():
     conn = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=30)
     conn.row_factory = sqlite3.Row
@@ -677,15 +699,6 @@ def parse_dt(value):
             return None
 
 
-def safe_row_value(row, key, default=None):
-    if row is None:
-        return default
-    try:
-        return row[key]
-    except Exception:
-        return default
-
-
 def is_ip_verification_required():
     return bool(get_setting("ip_verification_enabled"))
 
@@ -758,13 +771,12 @@ def evaluate_inactivity_penalty(user_id):
     if not user:
         return False, 0.0
     floor = float(get_setting("inactivity_min_balance_floor") or 1)
-    balance = float(safe_row_value(user, "balance", 0) or 0)
+    balance = float(user["balance"] or 0)
     if balance <= floor:
         return False, 0.0
     days_limit = int(get_setting("inactivity_period_days") or 1)
     deduction_pct = float(get_setting("inactivity_deduction_percent") or 0)
-    last_active_raw = (safe_row_value(user, "last_active_at", "") or safe_row_value(user, "joined_at", "") or "").strip()
-    last_active = parse_dt(last_active_raw)
+    last_active = parse_dt(user["last_active_at"] or user["joined_at"])
     if not last_active or (datetime.now() - last_active).days < days_limit:
         return False, 0.0
     deduction = round(balance * deduction_pct / 100.0, 2)

@@ -1344,13 +1344,10 @@ function doRedirect(url, delayMs) {
 function handleVerify(btn) {
     if (!btn || btn.classList.contains('loading')) return;
     btn.classList.add('loading');
-    toast('Sending verification request…', 'info');
-
-    // Simulate — replace with real call
+    toast('Refreshing verification…', 'info');
     setTimeout(function() {
-        btn.classList.remove('loading');
-        toast('Request submitted! Awaiting confirmation.', 'success');
-    }, 2000);
+        window.location.reload();
+    }, 350);
 }
 
 // Success → Continue
@@ -1372,8 +1369,7 @@ function handleRetry(btn) {
 
     setTimeout(function() {
         btn.classList.remove('loading');
-        // Replace with: window.location.href = '/verify?retry=1';
-        toast('Please contact support if this keeps happening.', 'error');
+        window.location.reload();
     }, 2000);
 }
 

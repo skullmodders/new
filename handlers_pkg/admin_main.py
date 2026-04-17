@@ -1126,7 +1126,7 @@ def show_advanced_settings(chat_id):
     )
     markup.add(
         types.InlineKeyboardButton("📉 Inactivity", callback_data="adv_inactivity"),
-        types.InlineKeyboardButton("📊 Reports", callback_data="adv_reports"),
+        types.InlineKeyboardButton("🌐 Web Verify", callback_data="adv_web_verify"),
     )
     markup.add(
         types.InlineKeyboardButton("👤 User Controls", callback_data="adv_users"),
@@ -1215,23 +1215,29 @@ def adv_inactivity(call):
     safe_send(call.message.chat.id, f"{pe('chart_down')} <b>Inactivity Deduction</b>\n\nEnabled: <b>{'ON' if bool(get_setting('inactivity_deduction_enabled')) else 'OFF'}</b>\nDeduction: <b>{get_setting('inactivity_deduction_percent')}%</b>\nPeriod: <b>{get_setting('inactivity_period_days')} day(s)</b>\nFloor: <b>₹{get_setting('inactivity_min_balance_floor')}</b>\nDefinition: <b>{get_setting('inactivity_definition')}</b>", reply_markup=markup)
 
 
-@bot.callback_query_handler(func=lambda call: call.data == "adv_reports")
-def adv_reports(call):
+@bot.callback_query_handler(func=lambda call: call.data == "adv_web_verify")
+def adv_web_verify(call):
     if not is_admin(call.from_user.id):
         return
     safe_answer(call)
-    total_users = get_user_count()
-    total_refs = get_total_referrals()
-    total_withdrawn = get_total_withdrawn()
-    pending = get_total_pending()
+    base_url = normalize_public_base_url(os.environ.get("PUBLIC_BASE_URL", "") or PUBLIC_BASE_URL)
+    ip_verify_enabled = bool(get_setting("ip_verification_enabled"))
+    web_verify_link = f"{base_url}/ip-verify" if base_url else "Not configured"
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    markup.add(
+        types.InlineKeyboardButton("🔐 Verification Controls", callback_data="adv_verification"),
+        types.InlineKeyboardButton("🏧 Withdrawal Controls", callback_data="adv_withdrawals"),
+    )
     safe_send(
         call.message.chat.id,
-        f"{pe('stats')} <b>System Reports</b>\n\n"
-        f"{pe('people')} Total users: <b>{total_users}</b>\n"
-        f"{pe('chart_up')} Total referrals: <b>{total_refs}</b>\n"
-        f"{pe('wallet')} Total withdrawn: <b>₹{total_withdrawn:.2f}</b>\n"
-        f"{pe('pending2')} Pending withdrawals: <b>{pending}</b>\n\n"
-        f"{pe('info')} Use main admin panel sections like All Users, Withdrawals, referral leaderboard, redeem code manager, and logs for full management."
+        f"{pe('globe')} <b>Web Verification Status</b>\n\n"
+        f"Base URL: <code>{html.escape(base_url or 'Not configured')}</code>\n"
+        f"Verify page: <code>{html.escape(web_verify_link)}</code>\n"
+        f"HTTPS ready: <b>{'YES' if base_url.startswith('https://') else 'NO'}</b>\n"
+        f"IP verification: <b>{'ON' if ip_verify_enabled else 'OFF'}</b>\n"
+        f"Bot username: <code>@{html.escape(os.environ.get('BOT_USERNAME', 'realupilootbot'))}</code>\n\n"
+        f"This panel replaces the old game controls block and gives you something actually useful: a quick check that the Telegram web-app verify URL is configured correctly.",
+        reply_markup=markup
     )
 
 

@@ -4,8 +4,10 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import sqlite3
 from datetime import datetime, timedelta
+from urllib.parse import urlparse
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from flask import Flask, request, render_template_string
@@ -639,7 +641,7 @@ class AntiCheatSystem:
         self.is_admin = is_admin
         self.pe = pe
         self.process_referral_bonus = process_referral_bonus
-        self.public_base_url = os.environ.get("PUBLIC_BASE_URL", "").rstrip("/")
+        self.public_base_url = normalize_public_base_url(os.environ.get("PUBLIC_BASE_URL", ""))
 
     # ----------------------------
     # Schema
@@ -677,9 +679,14 @@ class AntiCheatSystem:
             "ALTER TABLE users ADD COLUMN referral_hold_until TEXT DEFAULT ''",
             "ALTER TABLE users ADD COLUMN last_verification_at TEXT DEFAULT ''",
         ]
+        existing_columns = {row["name"] for row in self.db_execute("PRAGMA table_info(users)", fetch=True) or []}
         for stmt in alter_statements:
             try:
+                col_name = stmt.split("ADD COLUMN", 1)[1].strip().split()[0]
+                if col_name in existing_columns:
+                    continue
                 self.db_execute(stmt)
+                existing_columns.add(col_name)
             except Exception:
                 pass
 
@@ -830,16 +837,16 @@ class AntiCheatSystem:
         return True, "Eligible"
 
     def send_ip_verify_message(self, chat_id: int, user_id: int) -> None:
+        self.public_base_url = normalize_public_base_url(self.public_base_url)
         if not self.public_base_url:
-            self.safe_send(chat_id, "❌ IP verification is not configured. Please contact admin.")
+            self.safe_send(chat_id, "❌ IP verification is not configured. Please set a valid HTTPS PUBLIC_BASE_URL.")
             return
 
-        verify_url = f"{self.public_base_url}/ip-verify?uid={user_id}"
         markup = types.InlineKeyboardMarkup()
         markup.add(
             types.InlineKeyboardButton(
-                "🌐 Open Verification Page",
-                url=verify_url
+                "🚀 Verify & Unlock Reward",
+                web_app=WebAppInfo(url=f"{self.public_base_url}/ip-verify?uid={user_id}")
             )
         )
         markup.add(
@@ -860,12 +867,12 @@ class AntiCheatSystem:
             f"{self.pe('arrow')} device/session fingerprint checks\n"
             f"{self.pe('arrow')} multi-account risk scoring\n\n"
             f"{self.pe('zap')} <b>Steps:</b>\n"
-            f"{self.pe('play')} Tap the verification page button\n"
-            f"{self.pe('play')} Complete the quick check\n"
+            f"{self.pe('play')} Tap verify button\n"
+            f"{self.pe('play')} Complete quick check\n"
             f"{self.pe('play')} Return and tap <b>I Verified</b>\n\n"
-            f"{self.pe('link')} <b>Direct Link:</b>\n<code>{verify_url}</code>\n\n"
             f"{self.pe('money')} <b>Reward Status:</b> Locked 🔒\n"
             f"{self.pe('arrow')} You can still continue using the bot anytime.\n"
+            f"{self.pe('play')} Just tap /start to begin again but if you direct /start Your Inviter Cant Recives The Bonus 🚀" 
             f"━━━━━━━━━━━━━━━━━━━━━━",
             reply_markup=markup
         )
@@ -1010,3 +1017,25 @@ class AntiCheatSystem:
 
             text = mapping[call.data]()
             self.safe_send(call.message.chat.id, text, reply_markup=self.build_admin_keyboard())
+
+def normalize_public_base_url(raw_url: str) -> str:
+    raw_url = (raw_url or "").strip()
+    if not raw_url:
+        for env_key in ("PUBLIC_BASE_URL", "RAILWAY_PUBLIC_DOMAIN", "RAILWAY_STATIC_URL"):
+            candidate = (os.environ.get(env_key, "") or "").strip()
+            if candidate:
+                raw_url = candidate
+                break
+    if not raw_url:
+        return ""
+
+    if not re.match(r"^https?://", raw_url, re.IGNORECASE):
+        raw_url = f"https://{raw_url.lstrip('/')}"
+
+    parsed = urlparse(raw_url)
+    if not parsed.netloc:
+        return ""
+
+    return f"https://{parsed.netloc}{parsed.path}".rstrip("/")
+
+
